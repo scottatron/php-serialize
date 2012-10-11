@@ -262,16 +262,12 @@ private
 				end
 
 			when 'O' # object, O:length:"class":length:{[attribute][value]...}
-				klass = string.string.match(/O\:[\d]+\:"(\w+)"/)[1].camelize.intern
+			  # class name (lowercase in PHP, grr)
+        len = string.read_until(':').to_i + 3 # quotes, seperator
+        klass = string.read(len)[1...-2].camelize.intern # read it, kill useless quotes
 
 				# read the attributes
 				attrs = []
-        # advance the StringIO pointer along 
-        # to just before the attributes length
-        # as it's now not advanced above due to
-        # regexing the class name instead of 
-        # reading StringIO
-				2.times {string.read_until(":")}
 				len = string.read_until('{').to_i
 
 				len.times do
@@ -279,7 +275,6 @@ private
 					attrs << [attr.intern, (attr << '=').intern, do_unserialize(string, classmap, assoc)]
 				end
 				string.read(1)
-				exit
 
 				val = nil
 				# See if we need to map to a particular object
