@@ -1,4 +1,3 @@
-
 Gem::Specification.new do |spec|
 	spec.name = "php-serialize"
 	spec.version = "1.1.0"
@@ -16,4 +15,6 @@ Gem::Specification.new do |spec|
 	EOF
 	spec.test_file = 'test.rb'
 	spec.has_rdoc = true
+	spec.add_dependency('actionpack', '~> 3.2.8')
+	spec.add_dependency('activesupport', '~> 3.2.8')
 end
