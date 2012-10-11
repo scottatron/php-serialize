@@ -36,6 +36,8 @@
 #
 # See http://www.php.net/serialize and http://www.php.net/unserialize for
 # details on the PHP side of all this.
+require 'action_dispatch/middleware/flash'
+require 'active_support/inflector'
 module PHP
 # string = PHP.serialize(mixed var[, bool assoc])
 #
@@ -73,10 +75,18 @@ module PHP
 					s << "#{PHP.serialize(k, assoc)}#{PHP.serialize(v, assoc)}"
 				end
 				s << '}'
-
+				
+			when ActionDispatch::Flash::FlashHash
+			  hash = var.to_hash
+				s << "O:#{var.class.to_s.length}:\"#{var.class.to_s.underscore}\":#{hash.length}:{"
+				hash.each do |k,v|
+					s << "#{PHP.serialize(k.to_s, assoc)}#{PHP.serialize(v, assoc)}"
+				end
+				s << '}'
+				
 			when Struct
 				# encode as Object with same name
-				s << "O:#{var.class.to_s.length}:\"#{var.class.to_s.downcase}\":#{var.members.length}:{"
+				s << "O:#{var.class.to_s.length}:\"#{var.class.to_s.underscore}\":#{var.members.length}:{"
 				var.members.each do |member|
 					s << "#{PHP.serialize(member, assoc)}#{PHP.serialize(var[member], assoc)}"
 				end
@@ -101,7 +111,7 @@ module PHP
 				if var.respond_to?(:to_assoc)
 					v = var.to_assoc
 					# encode as Object with same name
-					s << "O:#{var.class.to_s.length}:\"#{var.class.to_s.downcase}\":#{v.length}:{"
+					s << "O:#{var.class.to_s.length}:\"#{var.class.to_s.underscore}\":#{v.length}:{"
 					v.each do |k,v|
 						s << "#{PHP.serialize(k.to_s, assoc)}#{PHP.serialize(v, assoc)}"
 					end
@@ -206,7 +216,7 @@ module PHP
 			end
 			ret
 		else
-			PHP.do_unserialize(string, classmap, assoc)
+			  PHP.do_unserialize(string, classmap, assoc)
 		end
 	end
 
@@ -252,12 +262,16 @@ private
 				end
 
 			when 'O' # object, O:length:"class":length:{[attribute][value]...}
-				# class name (lowercase in PHP, grr)
-				len = string.read_until(':').to_i + 3 # quotes, seperator
-				klass = string.read(len)[1...-2].capitalize.intern # read it, kill useless quotes
+				klass = string.string.match(/O\:[\d]+\:"(\w+)"/)[1].camelize.intern
 
 				# read the attributes
 				attrs = []
+        # advance the StringIO pointer along 
+        # to just before the attributes length
+        # as it's now not advanced above due to
+        # regexing the class name instead of 
+        # reading StringIO
+				2.times {string.read_until(":")}
 				len = string.read_until('{').to_i
 
 				len.times do
@@ -265,6 +279,7 @@ private
 					attrs << [attr.intern, (attr << '=').intern, do_unserialize(string, classmap, assoc)]
 				end
 				string.read(1)
+				exit
 
 				val = nil
 				# See if we need to map to a particular object
@@ -285,7 +300,11 @@ private
 				end
 
 				attrs.each do |attr,attrassign,v|
-					val.__send__(attrassign, v)
+				  if val.respond_to?(attrassign.to_sym)
+  					val.__send__(attrassign, v)
+  				else
+  				  val[attrassign.to_sym] = v
+				  end
 				end
 
 			when 's' # string, s:length:"data";

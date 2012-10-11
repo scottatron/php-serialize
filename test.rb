@@ -1,7 +1,7 @@
 #!/usr/local/bin/ruby
 # encoding: utf-8
 
-if RUBY_VERSION == "1.9.2"
+if RUBY_VERSION =~ /1\.9/
   # needed, when running in Ruby 1.9.2 -> no stdlib test/unit
   gem 'test-unit'
 end
@@ -32,7 +32,8 @@ end
 
 ClassMap = {
 	TestStruct.name.capitalize.intern => TestStruct,
-	TestClass.name.capitalize.intern => TestClass
+	TestClass.name.capitalize.intern => TestClass,
+	:"ActionDispatch::Flash::FlashHash" => ActionDispatch::Flash::FlashHash
 }
 
 class TestPhpSerialize < Test::Unit::TestCase
@@ -73,11 +74,14 @@ class TestPhpSerialize < Test::Unit::TestCase
 	test [nil, true, false, 42, 4.2, 'test'], 'a:6:{i:0;N;i:1;b:1;i:2;b:0;i:3;i:42;i:4;d:4.2;i:5;s:4:"test";}',
 		:name => 'Array'
 	test({'foo' => 'bar', 4 => [5,4,3,2]}, 'a:2:{s:3:"foo";s:3:"bar";i:4;a:4:{i:0;i:5;i:1;i:4;i:2;i:3;i:3;i:2;}}', :name => 'Hash')
-	test TestStruct.new("Foo", 65), 'O:10:"teststruct":2:{s:4:"name";s:3:"Foo";s:5:"value";i:65;}',
-		:name => 'Struct'
-	test TestClass.new("Foo", 65), 'O:9:"testclass":2:{s:4:"name";s:3:"Foo";s:5:"value";i:65;}',
-		:name => 'Class'
-
+  test TestStruct.new("Foo", 65), 'O:10:"test_struct":2:{s:4:"name";s:3:"Foo";s:5:"value";i:65;}',
+    :name => 'Struct'
+  test TestClass.new("Foo", 65), 'O:9:"test_class":2:{s:4:"name";s:3:"Foo";s:5:"value";i:65;}',
+    :name => 'Class'
+  flash_hash = ActionDispatch::Flash::FlashHash.new
+  flash_hash[:notice] = "Foo"
+  test flash_hash, 'O:32:"action_dispatch/flash/flash_hash":1:{s:6:"notice";s:3:"Foo";}', :name => 'flash_hash'
+		
   # PHP counts multibyte string, not string length
   def test_multibyte_string
     assert_equal  "s:6:\"öäü\";", PHP.serialize("öäü")
